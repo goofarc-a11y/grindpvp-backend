@@ -42,7 +42,10 @@ Set `DATABASE_URL` to `sqlite:///./grindpvp.db` for local development or a
 PostgreSQL SQLAlchemy URL for PostgreSQL. Admin login is disabled until
 `ADMIN_PASSWORD` is set. Public self-registration is disabled
 because a client-supplied UUID does not prove Minecraft account ownership; an
-administrator must add the player by UUID and current in-game name.
+administrator can add the player by current Minecraft name. New names are
+resolved to UUIDs through Mojang's official profile service; existing UUID
+based admin requests remain supported. This lookup confirms the profile exists
+but does not prove account ownership.
 
 ## API
 
@@ -50,11 +53,17 @@ administrator must add the player by UUID and current in-game name.
 - `GET /players?search=&page=&page_size=`; `POST /players` is intentionally
   rejected until trusted Minecraft account verification is implemented
 - `GET /players/{uuid}/stats`, `GET /profiles/{uuid}`
+- `GET /players/presentation?page=&page_size=` returns name-decoration data
+  for verified players only
 - `GET /leaderboard/overall`, `GET /leaderboard/{kit}`
 - `GET /matches`, `GET /matches/{uuid}`
 - `POST /admin/login`, then pass the returned bearer token to admin endpoints
 - `POST /admin/logout`, `/players`, `/verify`, `/roles`, `/titles`, `/matches`,
   `/tiers`, `/stats`; `GET /admin/matches`, `/logs`, `/players/{uuid}`
+
+Admin create, verify, role, title, tier, statistics, and match operations accept
+Minecraft names. New player creation resolves the official UUID server-side;
+all previous UUID-based write payloads remain accepted for compatibility.
 
 Public match submissions are rejected. Only the authenticated admin match
 endpoint can update results. Match idempotency keys, a per-kit database lock,

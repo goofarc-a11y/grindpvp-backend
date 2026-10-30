@@ -31,6 +31,12 @@ class PlayerCreate(BaseModel):
     username: Username
 
 
+class AdminPlayerCreate(BaseModel):
+    uuid: UuidValue | None = None
+    username: Username
+    verified: bool | None = None
+
+
 class KitStatsOut(BaseModel):
     kit: KitId
     tier: TierId
@@ -100,10 +106,6 @@ class AdminToken(BaseModel):
     expires_at: datetime
 
 
-class AdminPlayerCreate(PlayerCreate):
-    verified: bool = False
-
-
 class VerificationUpdate(BaseModel):
     uuid: UuidValue | None = None
     username: Username | None = None
@@ -117,26 +119,71 @@ class VerificationUpdate(BaseModel):
 
 
 class RoleUpdate(BaseModel):
-    uuid: UuidValue
+    uuid: UuidValue | None = None
+    username: Username | None = None
     role: Annotated[str, StringConstraints(min_length=1, max_length=16)] | None
+
+    @model_validator(mode="after")
+    def require_one_player_identifier(self) -> "RoleUpdate":
+        if (self.uuid is None) == (self.username is None):
+            raise ValueError("Provide either a Minecraft UUID or an in-game username.")
+        return self
 
 
 class TitleUpdate(BaseModel):
-    uuid: UuidValue
+    uuid: UuidValue | None = None
+    username: Username | None = None
     title: Annotated[str, StringConstraints(min_length=1, max_length=24)] | None
+
+    @model_validator(mode="after")
+    def require_one_player_identifier(self) -> "TitleUpdate":
+        if (self.uuid is None) == (self.username is None):
+            raise ValueError("Provide either a Minecraft UUID or an in-game username.")
+        return self
 
 
 class TierUpdate(BaseModel):
-    uuid: UuidValue
+    uuid: UuidValue | None = None
+    username: Username | None = None
     kit: KitId
     tier: TierId | None
 
+    @model_validator(mode="after")
+    def require_one_player_identifier(self) -> "TierUpdate":
+        if (self.uuid is None) == (self.username is None):
+            raise ValueError("Provide either a Minecraft UUID or an in-game username.")
+        return self
+
+
+class AdminMatchCreate(BaseModel):
+    idempotency_key: IdempotencyKey
+    kit: KitId
+    winner_username: Username | None = None
+    loser_username: Username | None = None
+    winner_uuid: UuidValue | None = None
+    loser_uuid: UuidValue | None = None
+
+    @model_validator(mode="after")
+    def require_one_identifier_per_player(self) -> "AdminMatchCreate":
+        if (self.winner_username is None) == (self.winner_uuid is None):
+            raise ValueError("Provide either the winner's Minecraft username or UUID.")
+        if (self.loser_username is None) == (self.loser_uuid is None):
+            raise ValueError("Provide either the loser's Minecraft username or UUID.")
+        return self
+
 
 class PlayerStatsUpdate(BaseModel):
-    uuid: UuidValue
+    uuid: UuidValue | None = None
+    username: Username | None = None
     kit: KitId
     wins: int = Field(ge=0, le=1_000_000)
     losses: int = Field(ge=0, le=1_000_000)
+
+    @model_validator(mode="after")
+    def require_one_player_identifier(self) -> "PlayerStatsUpdate":
+        if (self.uuid is None) == (self.username is None):
+            raise ValueError("Provide either a Minecraft UUID or an in-game username.")
+        return self
 
 
 class LeaderboardEntry(BaseModel):
@@ -177,6 +224,21 @@ class OverallLeaderboardPage(BaseModel):
     page: int
     page_size: int
     total: int
+
+
+class PlayerPresentation(BaseModel):
+    uuid: str
+    username: str
+    role_name: str | None
+    role_color: str | None
+    title_name: str | None
+    title_color: str | None
+    overall_tier: str
+    overall_tier_color: str
+
+
+class PlayerPresentationPage(BaseModel):
+    items: list[PlayerPresentation]
 
 
 class AdminLogOut(BaseModel):

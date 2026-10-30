@@ -1,5 +1,8 @@
 from uuid import UUID, uuid4
 
+import pytest
+from fastapi import HTTPException
+
 
 def register(client, name: str) -> str:
     player_uuid = str(uuid4())
@@ -247,3 +250,120 @@ def test_untrusted_uuid_registration_is_rejected_and_admin_verifies_by_name(clie
     )
     assert verified.status_code == 200
     assert verified.json()["verified"] is True
+
+
+def test_admin_can_register_and_manage_player_by_username(client, monkeypatch) -> None:
+    from app import routes
+
+    player_uuid = str(uuid4())
+    monkeypatch.setattr(
+        routes,
+        "resolve_minecraft_username",
+        lambda username: (player_uuid, "NameOnlyPlayer"),
+    )
+    token = login(client)
+    headers = admin_headers(token)
+
+    created = client.post(
+        "/admin/players",
+        headers=headers,
+        json={"username": "NameOnlyPlayer"},
+    )
+    assert created.status_code == 200, created.text
+    assert created.json()["uuid"] == player_uuid
+
+    verified = client.post(
+        "/admin/verify",
+        headers=headers,
+        json={"username": "nameonlyplayer", "verified": True},
+    )
+    assert verified.status_code == 200
+    assert verified.json()["verified"] is True
+    refreshed = client.post(
+        "/admin/players",
+        headers=headers,
+        json={"username": "NameOnlyPlayer"},
+    )
+    assert refreshed.status_code == 200
+    assert refreshed.json()["verified"] is True
+
+    role = client.post(
+        "/admin/roles",
+        headers=headers,
+        json={"username": "NameOnlyPlayer", "role": "Admin"},
+    )
+    assert role.status_code == 200
+    assert role.json()["role_name"] == "Admin"
+
+    title = client.post(
+        "/admin/titles",
+        headers=headers,
+        json={"username": "NameOnlyPlayer", "title": "Cup Winner"},
+    )
+    assert title.status_code == 200
+    assert title.json()["title_name"] == "Cup Winner"
+
+    tier = client.post(
+        "/admin/tiers",
+        headers=headers,
+        json={"username": "NameOnlyPlayer", "kit": "sword", "tier": "HT1"},
+    )
+    assert tier.status_code == 200
+    stats = client.post(
+        "/admin/stats",
+        headers=headers,
+        json={"username": "NameOnlyPlayer", "kit": "sword", "wins": 3, "losses": 1},
+    )
+    assert stats.status_code == 200
+    assert next(kit for kit in stats.json()["kits"] if kit["kit"] == "sword")["wins"] == 3
+
+    presentation = client.get("/players/presentation")
+    assert presentation.status_code == 200
+    item = presentation.json()["items"][0]
+    assert item["uuid"] == player_uuid
+    assert item["role_color"] == "#FF7A24"
+    assert item["title_color"] == "#f1c40f"
+    assert "overall_tier_color" in item
+
+
+def test_admin_match_can_use_playernames(client) -> None:
+    winner = register(client, "NameWinner")
+    loser = register(client, "NameLoser")
+    response = client.post(
+        "/admin/matches",
+        headers=admin_headers(login(client)),
+        json={
+            "idempotency_key": "names-only-match",
+            "kit": "sword",
+            "winner_username": "namewinner",
+            "loser_username": "NameLoser",
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert response.json()["winner_uuid"] == winner
+    assert response.json()["loser_uuid"] == loser
+    assert client.get(
+        "/admin/matches?username=NameWinner",
+        headers=admin_headers(login(client)),
+    ).json()["total"] == 1
+
+
+def test_minecraft_profile_lookup_reports_missing_names(monkeypatch) -> None:
+    from app import minecraft_profiles
+
+    class EmptyProfileResponse:
+        status = 204
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b""
+
+    monkeypatch.setattr(minecraft_profiles, "urlopen", lambda *_args, **_kwargs: EmptyProfileResponse())
+    with pytest.raises(HTTPException) as error:
+        minecraft_profiles.resolve_minecraft_username("NoSuchPlayer")
+    assert error.value.status_code == 404

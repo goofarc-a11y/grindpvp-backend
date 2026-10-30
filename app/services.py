@@ -28,6 +28,13 @@ def get_player_or_404(session: Session, player_uuid: UUID | str) -> Player:
     return player
 
 
+def get_player_by_username_or_404(session: Session, username: str) -> Player:
+    player = session.scalar(select(Player).where(func.lower(Player.username) == username.lower()))
+    if player is None:
+        raise HTTPException(status_code=404, detail="Player was not found.")
+    return player
+
+
 def ensure_player_kits(session: Session, player: Player) -> dict[str, PlayerKit]:
     existing = {record.kit: record for record in player.kits}
     for kit in KIT_IDS:

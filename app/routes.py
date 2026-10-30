@@ -20,8 +20,10 @@ from app.models import (
     RoleDefinition,
     TitleDefinition,
 )
-from app.ranking import KIT_IDS, ROLE_COLORS, TIERS, TITLE_COLORS
+from app.ranking import KIT_IDS, ROLE_COLORS, TIERS, TIER_POINTS, TITLE_COLORS, overall_tier, points_for_tier
+from app.minecraft_profiles import resolve_minecraft_username
 from app.schemas import (
+    AdminMatchCreate,
     AdminLogPage,
     AdminLogin,
     AdminPlayerCreate,
@@ -35,6 +37,8 @@ from app.schemas import (
     PlayerCreate,
     PlayerOut,
     PlayerPage,
+    PlayerPresentation,
+    PlayerPresentationPage,
     PlayerStatsUpdate,
     RoleUpdate,
     TierUpdate,
@@ -44,6 +48,7 @@ from app.schemas import (
 from app.security import create_admin_session, require_admin, revoke_session, verify_password
 from app.services import (
     canonical_uuid,
+    get_player_by_username_or_404,
     get_player_or_404,
     leaderboard_page,
     overall_leaderboard_page,
@@ -55,6 +60,18 @@ from app.services import (
 public_router = APIRouter()
 admin_router = APIRouter(prefix="/admin", tags=["admin"])
 _bearer_auth = HTTPBearer()
+
+
+def get_player_by_username_or_404_optional(session: Session, username: str) -> Player | None:
+    return session.scalar(select(Player).where(func.lower(Player.username) == username.lower()))
+
+
+def _player_from_identifier(session: Session, player_uuid: UUID | None, username: str | None) -> Player:
+    if player_uuid is not None:
+        return get_player_or_404(session, player_uuid)
+    if username is None:
+        raise HTTPException(status_code=422, detail="A Minecraft username is required.")
+    return get_player_by_username_or_404(session, username)
 
 
 @public_router.get("/catalog", response_model=CatalogOut, tags=["catalog"])
@@ -92,6 +109,40 @@ def list_players(
         page_size=page_size,
         total=total,
     )
+
+
+@public_router.get("/players/presentation", response_model=PlayerPresentationPage, tags=["players"])
+def list_player_presentations(
+    page: int = Query(default=1, ge=1),
+    page_size: int = Query(default=1000, ge=1, le=5000),
+    session: Session = Depends(get_db),
+) -> PlayerPresentationPage:
+    players = session.scalars(
+        select(Player)
+        .options(selectinload(Player.kits))
+        .where(Player.verified.is_(True))
+        .order_by(Player.username)
+        .offset((page - 1) * page_size)
+        .limit(page_size)
+    ).all()
+    tier_colors = {tier.name: tier.color for tier in TIERS}
+    items = []
+    for player in players:
+        total_points = sum(TIER_POINTS[record.tier] for record in player.kits)
+        tier, _ = overall_tier(total_points)
+        items.append(
+            PlayerPresentation(
+                uuid=player.uuid,
+                username=player.username,
+                role_name=player.role_name,
+                role_color=ROLE_COLORS.get(player.role_name),
+                title_name=player.title_name,
+                title_color=TITLE_COLORS.get(player.title_name),
+                overall_tier=tier,
+                overall_tier_color=tier_colors[tier],
+            )
+        )
+    return PlayerPresentationPage(items=items)
 
 
 @public_router.post("/players", status_code=status.HTTP_403_FORBIDDEN, tags=["players"])
@@ -243,28 +294,38 @@ def admin_create_or_update_player(
     admin_username: str = Depends(require_admin),
     session: Session = Depends(get_db),
 ) -> PlayerOut:
-    player_uuid = canonical_uuid(payload.uuid)
+    if payload.uuid is None:
+        existing = get_player_by_username_or_404_optional(session, payload.username)
+        if existing is None:
+            player_uuid, resolved_username = resolve_minecraft_username(payload.username)
+        else:
+            player_uuid, resolved_username = existing.uuid, existing.username
+    else:
+        player_uuid, resolved_username = canonical_uuid(payload.uuid), payload.username
     player = session.get(Player, player_uuid)
     created = player is None
     if player is None:
-        username_owner = session.scalar(
-            select(Player.uuid).where(func.lower(Player.username) == payload.username.lower())
-        )
+        username_owner = get_player_by_username_or_404_optional(session, resolved_username)
         if username_owner is not None:
             raise HTTPException(status_code=409, detail="This Minecraft username is already registered.")
-        player = Player(uuid=player_uuid, username=payload.username, verified=payload.verified)
+        player = Player(
+            uuid=player_uuid,
+            username=resolved_username,
+            verified=payload.verified if payload.verified is not None else False,
+        )
         session.add(player)
     else:
         username_owner = session.scalar(
             select(Player.uuid).where(
-                func.lower(Player.username) == payload.username.lower(),
+                func.lower(Player.username) == resolved_username.lower(),
                 Player.uuid != player_uuid,
             )
         )
         if username_owner is not None:
             raise HTTPException(status_code=409, detail="This Minecraft username is already registered.")
-        player.username = payload.username
-        player.verified = payload.verified
+        player.username = resolved_username
+        if payload.verified is not None:
+            player.verified = payload.verified
     if player.verified and player.title_name is None:
         player.title_name = "Member"
     if not player.verified:
@@ -275,7 +336,7 @@ def admin_create_or_update_player(
         admin_username,
         "player.created" if created else "player.updated",
         player_uuid,
-        {"username": payload.username, "verified": payload.verified},
+        {"username": resolved_username, "verified": player.verified},
     )
     return player_payload(session, player)
 
@@ -286,14 +347,7 @@ def admin_set_verification(
     admin_username: str = Depends(require_admin),
     session: Session = Depends(get_db),
 ) -> PlayerOut:
-    if payload.uuid is not None:
-        player = get_player_or_404(session, payload.uuid)
-    else:
-        player = session.scalar(
-            select(Player).where(func.lower(Player.username) == payload.username.lower())
-        )
-        if player is None:
-            raise HTTPException(status_code=404, detail="Player was not found.")
+    player = _player_from_identifier(session, payload.uuid, payload.username)
     player.verified = payload.verified
     if payload.verified and player.title_name is None:
         player.title_name = "Member"
@@ -315,7 +369,7 @@ def admin_set_role(
     admin_username: str = Depends(require_admin),
     session: Session = Depends(get_db),
 ) -> PlayerOut:
-    player = get_player_or_404(session, payload.uuid)
+    player = _player_from_identifier(session, payload.uuid, payload.username)
     if payload.role is not None and session.get(RoleDefinition, payload.role) is None:
         raise HTTPException(status_code=422, detail="Unknown role.")
     previous_role = player.role_name
@@ -336,7 +390,7 @@ def admin_set_title(
     admin_username: str = Depends(require_admin),
     session: Session = Depends(get_db),
 ) -> PlayerOut:
-    player = get_player_or_404(session, payload.uuid)
+    player = _player_from_identifier(session, payload.uuid, payload.username)
     if payload.title is not None:
         if not player.verified:
             raise HTTPException(status_code=409, detail="Only verified players can receive a title.")
@@ -356,11 +410,30 @@ def admin_set_title(
 
 @admin_router.post("/matches", response_model=MatchOut)
 def admin_submit_match(
-    payload: MatchCreate,
+    payload: AdminMatchCreate,
     admin_username: str = Depends(require_admin),
     session: Session = Depends(get_db),
 ) -> MatchOut:
-    match = submit_match(session, payload, admin_username)
+    winner = (
+        get_player_by_username_or_404(session, payload.winner_username)
+        if payload.winner_username is not None
+        else get_player_or_404(session, payload.winner_uuid)
+    )
+    loser = (
+        get_player_by_username_or_404(session, payload.loser_username)
+        if payload.loser_username is not None
+        else get_player_or_404(session, payload.loser_uuid)
+    )
+    match = submit_match(
+        session,
+        MatchCreate(
+            idempotency_key=payload.idempotency_key,
+            kit=payload.kit,
+            winner_uuid=winner.uuid,
+            loser_uuid=loser.uuid,
+        ),
+        admin_username,
+    )
     return MatchOut.model_validate(match)
 
 
@@ -370,7 +443,7 @@ def admin_set_tier(
     admin_username: str = Depends(require_admin),
     session: Session = Depends(get_db),
 ) -> PlayerOut:
-    player = get_player_or_404(session, payload.uuid)
+    player = _player_from_identifier(session, payload.uuid, payload.username)
     target_tier = payload.tier or "Unranked"
     lock_result = session.execute(
         update(KitLock).where(KitLock.kit == payload.kit).values(kit=payload.kit)
@@ -423,7 +496,7 @@ def admin_correct_stats(
     admin_username: str = Depends(require_admin),
     session: Session = Depends(get_db),
 ) -> PlayerOut:
-    player = get_player_or_404(session, payload.uuid)
+    player = _player_from_identifier(session, payload.uuid, payload.username)
     record = session.get(PlayerKit, (player.uuid, payload.kit))
     if record is None:
         record = PlayerKit(player_uuid=player.uuid, kit=payload.kit)
@@ -445,12 +518,18 @@ def admin_correct_stats(
 @admin_router.get("/matches", response_model=MatchPage)
 def admin_list_matches(
     player_uuid: UUID | None = None,
+    username: str | None = Query(default=None, min_length=3, max_length=16, pattern=r"^[A-Za-z0-9_]+$"),
     page: int = Query(default=1, ge=1),
     page_size: int = Query(default=25, ge=1, le=100),
     admin_username: str = Depends(require_admin),
     session: Session = Depends(get_db),
 ) -> MatchPage:
     del admin_username
+    if player_uuid is not None and username is not None:
+        raise HTTPException(status_code=422, detail="Provide either player_uuid or username, not both.")
+    if username is not None:
+        player = get_player_by_username_or_404(session, username)
+        player_uuid = UUID(player.uuid)
     return _match_page(session, canonical_uuid(player_uuid) if player_uuid else None, page, page_size)
 
 
