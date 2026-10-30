@@ -30,7 +30,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]
         session.add_all([KitLock(kit=kit) for kit in KIT_IDS])
         session.add_all([RoleDefinition(name=name, color=color) for name, color in ROLE_COLORS.items()])
         session.add_all([TitleDefinition(name=name, color=color) for name, color in TITLE_COLORS.items()])
-        session.add(Admin(username="test-admin", password_hash=hash_password("test-password-long")))
+        session.add(Admin(username="admin", password_hash=hash_password("1302")))
 
     def override_get_db():
         with test_sessions() as session:
@@ -44,8 +44,7 @@ def client(monkeypatch: pytest.MonkeyPatch) -> Generator[TestClient, None, None]
     app.dependency_overrides[get_db] = override_get_db
     monkeypatch.setattr(main, "initialize_database", lambda: None)
     settings = Settings(
-        admin_username="test-admin",
-        admin_password="test-password-long",
+        admin_password="1302",
         admin_session_hours=2,
     )
     monkeypatch.setattr(routes, "get_settings", lambda: settings)

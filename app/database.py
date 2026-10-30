@@ -37,10 +37,6 @@ def initialize_database() -> None:
     from app.security import hash_password
 
     settings = get_settings()
-    if settings.admin_username and not settings.admin_password:
-        raise RuntimeError("ADMIN_PASSWORD must be set when ADMIN_USERNAME is configured.")
-    if settings.admin_password and not settings.admin_username:
-        raise RuntimeError("ADMIN_USERNAME must be set when ADMIN_PASSWORD is configured.")
     if settings.admin_password and not settings.admin_password.strip():
         raise RuntimeError("ADMIN_PASSWORD must not be blank.")
 
@@ -56,7 +52,7 @@ def initialize_database() -> None:
             if session.get(TitleDefinition, name) is None:
                 session.add(TitleDefinition(name=name, color=color))
 
-        if settings.admin_username and settings.admin_password:
+        if settings.admin_password:
             admin = session.get(Admin, settings.admin_username)
             password_hash = hash_password(settings.admin_password)
             if admin is None:

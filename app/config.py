@@ -7,7 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     app_env: str = "development"
     database_url: str = "sqlite:///./grindpvp.db"
-    admin_username: str | None = None
+    admin_username: str = "admin"
     admin_password: str | None = None
     admin_session_hours: int = Field(default=8, ge=1, le=168)
 

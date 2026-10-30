@@ -16,7 +16,7 @@ def register(client, name: str) -> str:
 def login(client) -> str:
     response = client.post(
         "/admin/login",
-        json={"password": "test-password-long"},
+        json={"password": "1302"},
     )
     assert response.status_code == 200, response.text
     return response.json()["access_token"]
@@ -208,10 +208,24 @@ def test_invalid_kit_uuid_and_admin_credentials_are_rejected(client) -> None:
     assert client.post("/admin/login", json={"password": "wrong"}).status_code == 401
 
 
+def test_admin_login_with_configured_code_returns_usable_session(client) -> None:
+    response = client.post("/admin/login", json={"password": "1302"})
+
+    assert response.status_code == 200, response.text
+    body = response.json()
+    assert body["access_token"]
+    assert "password" not in body
+    assert "username" not in body
+    assert client.get(
+        "/admin/logs",
+        headers=admin_headers(body["access_token"]),
+    ).status_code == 200
+
+
 def test_admin_login_rate_limit_is_enforced(client) -> None:
     for _ in range(5):
         assert client.post("/admin/login", json={"password": "wrong"}).status_code == 401
-    assert client.post("/admin/login", json={"password": "test-password-long"}).status_code == 429
+    assert client.post("/admin/login", json={"password": "1302"}).status_code == 429
 
 
 def test_untrusted_uuid_registration_is_rejected_and_admin_verifies_by_name(client) -> None:

@@ -186,10 +186,10 @@ def admin_login(
     session: Session = Depends(get_db),
 ) -> AdminToken:
     settings = get_settings()
-    if not settings.admin_username or not settings.admin_password:
+    if not settings.admin_password:
         raise HTTPException(
             status_code=503,
-            detail="Admin login is not configured. Set ADMIN_USERNAME and ADMIN_PASSWORD on the backend.",
+            detail="Admin login is not configured. Set ADMIN_PASSWORD on the backend.",
         )
     client_ip = request.client.host if request.client is not None else "unknown"
     ip_hash = hashlib.sha256(client_ip.encode("utf-8")).hexdigest()
