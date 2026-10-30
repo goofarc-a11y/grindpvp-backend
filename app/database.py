@@ -5,6 +5,8 @@ from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session, sessionmaker
 
 from app.config import get_settings
+from app.models import Admin, Base, KitLock, RoleDefinition, TitleDefinition
+from app.ranking import KIT_IDS, ROLE_COLORS, TITLE_COLORS
 
 
 def create_database_engine(database_url: str) -> Engine:
@@ -18,9 +20,46 @@ SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False
 
 def get_db() -> Generator[Session, None, None]:
     with SessionLocal() as session:
-        yield session
+        try:
+            yield session
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise
 
 
 def check_database_connection() -> None:
     with engine.connect() as connection:
         connection.execute(text("SELECT 1"))
+
+
+def initialize_database() -> None:
+    from app.security import hash_password
+
+    settings = get_settings()
+    if settings.admin_username and not settings.admin_password:
+        raise RuntimeError("ADMIN_PASSWORD must be set when ADMIN_USERNAME is configured.")
+    if settings.admin_password and not settings.admin_username:
+        raise RuntimeError("ADMIN_USERNAME must be set when ADMIN_PASSWORD is configured.")
+    if settings.admin_password and len(settings.admin_password) < 12:
+        raise RuntimeError("ADMIN_PASSWORD must be at least 12 characters.")
+
+    Base.metadata.create_all(engine)
+    with SessionLocal.begin() as session:
+        for kit in KIT_IDS:
+            if session.get(KitLock, kit) is None:
+                session.add(KitLock(kit=kit))
+        for name, color in ROLE_COLORS.items():
+            if session.get(RoleDefinition, name) is None:
+                session.add(RoleDefinition(name=name, color=color))
+        for name, color in TITLE_COLORS.items():
+            if session.get(TitleDefinition, name) is None:
+                session.add(TitleDefinition(name=name, color=color))
+
+        if settings.admin_username and settings.admin_password:
+            admin = session.get(Admin, settings.admin_username)
+            password_hash = hash_password(settings.admin_password)
+            if admin is None:
+                session.add(Admin(username=settings.admin_username, password_hash=password_hash))
+            else:
+                admin.password_hash = password_hash

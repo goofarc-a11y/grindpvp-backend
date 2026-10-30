@@ -1,4 +1,5 @@
 from fastapi.testclient import TestClient
+from sqlalchemy.exc import OperationalError
 from sqlalchemy import text
 
 from app import main
@@ -8,6 +9,7 @@ from app.database import create_database_engine
 
 def test_health_returns_success_when_database_is_available(monkeypatch) -> None:
     monkeypatch.setattr(main, "check_database_connection", lambda: None)
+    monkeypatch.setattr(main, "initialize_database", lambda: None)
 
     response = TestClient(main.app).get("/health")
 
@@ -17,9 +19,10 @@ def test_health_returns_success_when_database_is_available(monkeypatch) -> None:
 
 def test_health_returns_service_unavailable_when_database_fails(monkeypatch) -> None:
     def fail_connection() -> None:
-        raise RuntimeError("connection failed")
+        raise OperationalError("SELECT 1", {}, RuntimeError("connection failed"))
 
     monkeypatch.setattr(main, "check_database_connection", fail_connection)
+    monkeypatch.setattr(main, "initialize_database", lambda: None)
 
     response = TestClient(main.app).get("/health")
 
