@@ -1,14 +1,17 @@
+import hashlib
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from sqlalchemy import func, select, update
+from sqlalchemy import delete, func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from app.config import get_settings
 from app.database import get_db
 from app.models import (
     Admin,
+    AdminLoginAttempt,
     AdminLog,
     KitLock,
     Match,
@@ -177,16 +180,47 @@ def player_match_history(
 
 
 @admin_router.post("/login", response_model=AdminToken)
-def admin_login(payload: AdminLogin, session: Session = Depends(get_db)) -> AdminToken:
+def admin_login(
+    payload: AdminLogin,
+    request: Request,
+    session: Session = Depends(get_db),
+) -> AdminToken:
     settings = get_settings()
     if not settings.admin_username or not settings.admin_password:
         raise HTTPException(
             status_code=503,
             detail="Admin login is not configured. Set ADMIN_USERNAME and ADMIN_PASSWORD on the backend.",
         )
-    admin = session.get(Admin, payload.username)
+    client_ip = request.client.host if request.client is not None else "unknown"
+    ip_hash = hashlib.sha256(client_ip.encode("utf-8")).hexdigest()
+    now = datetime.now(UTC)
+    session.execute(
+        delete(AdminLoginAttempt).where(AdminLoginAttempt.created_at < now - timedelta(days=1))
+    )
+    recent_failures = session.scalar(
+        select(func.count())
+        .select_from(AdminLoginAttempt)
+        .where(
+            AdminLoginAttempt.ip_hash == ip_hash,
+            AdminLoginAttempt.created_at >= now - timedelta(minutes=15),
+        )
+    ) or 0
+    daily_failures = session.scalar(
+        select(func.count())
+        .select_from(AdminLoginAttempt)
+        .where(
+            AdminLoginAttempt.ip_hash == ip_hash,
+            AdminLoginAttempt.created_at >= now - timedelta(days=1),
+        )
+    ) or 0
+    if recent_failures >= 5 or daily_failures >= 10:
+        raise HTTPException(status_code=429, detail="Too many login attempts. Try again later.")
+
+    admin = session.get(Admin, settings.admin_username)
     if admin is None or not verify_password(payload.password, admin.password_hash):
-        raise HTTPException(status_code=401, detail="Invalid username or password.")
+        session.add(AdminLoginAttempt(ip_hash=ip_hash))
+        session.commit()
+        raise HTTPException(status_code=401, detail="Invalid password.")
     token, expires_at = create_admin_session(session, admin)
     write_admin_log(session, admin.username, "admin.login", None, {})
     return AdminToken(access_token=token, expires_at=expires_at)

@@ -91,7 +91,6 @@ class MatchPage(BaseModel):
 
 
 class AdminLogin(BaseModel):
-    username: Annotated[str, StringConstraints(min_length=1, max_length=64)]
     password: Annotated[str, StringConstraints(min_length=1, max_length=256)]
 
 

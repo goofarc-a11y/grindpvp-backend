@@ -7,10 +7,12 @@ leaderboards, match history, and authenticated administration.
 
 The Render Blueprint is in `render.yaml` and is configured for the `backend`
 directory. It creates a PostgreSQL database and web service. Configure
-`ADMIN_USERNAME` and a unique `ADMIN_PASSWORD` (at least 12 characters) in
-Render's environment settings before relying on admin functions. The password
-is scrypt-hashed before storage; the supplied development code `1302` is not
-used as a production credential.
+`ADMIN_USERNAME` and `ADMIN_PASSWORD` in Render's environment settings before
+relying on admin functions. The username remains a server-side account setting;
+the client signs in with the password only. Passwords are scrypt-hashed before
+storage, and failed login attempts are rate-limited per client IP. Configure
+the desired password as a Render environment secret; do not put it in the
+client or source code.
 
 For an existing Render service, set:
 
@@ -20,7 +22,8 @@ For an existing Render service, set:
 - Health Check Path: `/health`
 - `APP_ENV=production`
 - `DATABASE_URL` to the Render PostgreSQL internal connection string
-- `ADMIN_USERNAME` and `ADMIN_PASSWORD` to administrator-chosen values
+- `ADMIN_USERNAME` to the server-side administrator account and `ADMIN_PASSWORD`
+  to the password accepted by the password-only login form
 
 Render deploys the source connected to its Git repository. Push these changes
 to that repository or trigger a deploy after updating the source; changing
@@ -37,8 +40,7 @@ python -m uvicorn app.main:app --reload
 ```
 
 Set `DATABASE_URL` to `sqlite:///./grindpvp.db` for local development or a
-PostgreSQL SQLAlchemy URL for PostgreSQL. Admin login is disabled until both
-admin environment variables are set. Public self-registration is disabled
+PostgreSQL SQLAlchemy URL for PostgreSQL. Admin login is disabled until both admin environment variables are set. Public self-registration is disabled
 because a client-supplied UUID does not prove Minecraft account ownership; an
 administrator must add the player by UUID and current in-game name.
 

@@ -116,6 +116,15 @@ class AdminSession(Base):
     revoked: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
 
 
+class AdminLoginAttempt(Base):
+    __tablename__ = "admin_login_attempts"
+    __table_args__ = (Index("ix_admin_login_attempts_ip_created", "ip_hash", "created_at"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    ip_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class AdminLog(Base):
     __tablename__ = "admin_logs"
 

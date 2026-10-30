@@ -41,8 +41,8 @@ def initialize_database() -> None:
         raise RuntimeError("ADMIN_PASSWORD must be set when ADMIN_USERNAME is configured.")
     if settings.admin_password and not settings.admin_username:
         raise RuntimeError("ADMIN_USERNAME must be set when ADMIN_PASSWORD is configured.")
-    if settings.admin_password and len(settings.admin_password) < 12:
-        raise RuntimeError("ADMIN_PASSWORD must be at least 12 characters.")
+    if settings.admin_password and not settings.admin_password.strip():
+        raise RuntimeError("ADMIN_PASSWORD must not be blank.")
 
     Base.metadata.create_all(engine)
     with SessionLocal.begin() as session:

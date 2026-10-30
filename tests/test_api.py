@@ -16,7 +16,7 @@ def register(client, name: str) -> str:
 def login(client) -> str:
     response = client.post(
         "/admin/login",
-        json={"username": "test-admin", "password": "test-password-long"},
+        json={"password": "test-password-long"},
     )
     assert response.status_code == 200, response.text
     return response.json()["access_token"]
@@ -205,7 +205,13 @@ def test_admin_roles_titles_and_audit_log(client) -> None:
 def test_invalid_kit_uuid_and_admin_credentials_are_rejected(client) -> None:
     assert client.get("/leaderboard/unknown").status_code == 404
     assert client.get(f"/profiles/{UUID(int=0)}").status_code == 404
-    assert client.post("/admin/login", json={"username": "test-admin", "password": "wrong"}).status_code == 401
+    assert client.post("/admin/login", json={"password": "wrong"}).status_code == 401
+
+
+def test_admin_login_rate_limit_is_enforced(client) -> None:
+    for _ in range(5):
+        assert client.post("/admin/login", json={"password": "wrong"}).status_code == 401
+    assert client.post("/admin/login", json={"password": "test-password-long"}).status_code == 429
 
 
 def test_untrusted_uuid_registration_is_rejected_and_admin_verifies_by_name(client) -> None:
