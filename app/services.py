@@ -199,7 +199,11 @@ def leaderboard_page(
     page: int,
     page_size: int,
 ) -> tuple[list[dict[str, object]], int]:
-    total = session.scalar(select(func.count()).select_from(Player).where(Player.verified.is_(True))) or 0
+    leaderboard_filter = (
+        Player.verified.is_(True),
+        Player.role_name.is_distinct_from("Banned"),
+    )
+    total = session.scalar(select(func.count()).select_from(Player).where(*leaderboard_filter)) or 0
     offset = (page - 1) * page_size
     points = case(*[(PlayerKit.tier == tier, value) for tier, value in TIER_POINTS.items()], else_=0)
     rows = session.execute(
@@ -208,7 +212,7 @@ def leaderboard_page(
             PlayerKit,
             and_(PlayerKit.player_uuid == Player.uuid, PlayerKit.kit == kit),
         )
-        .where(Player.verified.is_(True))
+        .where(*leaderboard_filter)
         .order_by(
             points.desc(),
             func.coalesce(PlayerKit.wins, 0).desc(),
@@ -246,14 +250,18 @@ def overall_leaderboard_page(
     page: int,
     page_size: int,
 ) -> tuple[list[dict[str, object]], int]:
-    total = session.scalar(select(func.count()).select_from(Player).where(Player.verified.is_(True))) or 0
+    leaderboard_filter = (
+        Player.verified.is_(True),
+        Player.role_name.is_distinct_from("Banned"),
+    )
+    total = session.scalar(select(func.count()).select_from(Player).where(*leaderboard_filter)) or 0
     offset = (page - 1) * page_size
     points_per_kit = case(*[(PlayerKit.tier == tier, value) for tier, value in TIER_POINTS.items()], else_=0)
     total_points = func.coalesce(func.sum(points_per_kit), 0)
     rows = session.execute(
         select(Player, total_points.label("total_points"))
         .outerjoin(PlayerKit, PlayerKit.player_uuid == Player.uuid)
-        .where(Player.verified.is_(True))
+        .where(*leaderboard_filter)
         .group_by(Player.uuid)
         .order_by(total_points.desc(), Player.username.collate("NOCASE"))
         .offset(offset)

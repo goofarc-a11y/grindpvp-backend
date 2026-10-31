@@ -200,9 +200,44 @@ def test_admin_roles_titles_and_audit_log(client) -> None:
     role = client.post("/admin/roles", headers=headers, json={"uuid": player, "role": "Admin"})
     assert role.status_code == 200
     assert role.json()["role_name"] == "Admin"
+    developer_role = client.post("/admin/roles", headers=headers, json={"uuid": player, "role": "Developer"})
+    assert developer_role.status_code == 200
+    assert developer_role.json()["role_name"] == "Developer"
+    catalog_roles = {role["name"]: role["color"] for role in client.get("/catalog").json()["roles"]}
+    assert catalog_roles["Developer"] == "#5555FF"
+    assert catalog_roles["Banned"] == "#FF0000"
     logs = client.get("/admin/logs", headers=headers)
     assert logs.status_code == 200
     assert logs.json()["total"] >= 3
+
+
+def test_banned_players_are_excluded_from_all_leaderboards(client) -> None:
+    visible_player = register(client, "VisiblePlayer")
+    banned_player = register(client, "BannedPlayer")
+    token = login(client)
+    headers = admin_headers(token)
+
+    for player_uuid in (visible_player, banned_player):
+        response = client.post(
+            "/admin/verify",
+            headers=headers,
+            json={"uuid": player_uuid, "verified": True},
+        )
+        assert response.status_code == 200
+
+    response = client.post(
+        "/admin/roles",
+        headers=headers,
+        json={"uuid": banned_player, "role": "Banned"},
+    )
+    assert response.status_code == 200
+    assert response.json()["role_name"] == "Banned"
+
+    for path in ("/leaderboard/overall", "/leaderboard/sword"):
+        page = client.get(path, params={"page": 1, "page_size": 1}).json()
+        assert page["total"] == 1
+        assert [entry["uuid"] for entry in page["items"]] == [visible_player]
+        assert [entry["rank"] for entry in page["items"]] == [1]
 
 
 def test_invalid_kit_uuid_and_admin_credentials_are_rejected(client) -> None:
