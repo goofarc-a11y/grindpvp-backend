@@ -23,6 +23,8 @@ For an existing Render service, set:
 - `APP_ENV=production`
 - `DATABASE_URL` to the Render PostgreSQL internal connection string
 - `ADMIN_PASSWORD` to the password accepted by the password-only login form
+- `CORS_ORIGINS` to a comma-separated list of trusted website origins; the
+  deployed GrindPvP website origin is allowed by default
 
 Render deploys the source connected to its Git repository. Push these changes
 to that repository or trigger a deploy after updating the source; changing
