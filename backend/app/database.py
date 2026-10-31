@@ -33,19 +33,10 @@ def check_database_connection() -> None:
         connection.execute(text("SELECT 1"))
 
 
-def validate_database_configuration() -> None:
-    settings = get_settings()
-    if settings.is_production and engine.dialect.name != "postgresql":
-        raise RuntimeError(
-            "Production requires PostgreSQL. Configure DATABASE_URL with the existing Render database connection."
-        )
-
-
 def initialize_database() -> None:
     from app.security import hash_password
 
     settings = get_settings()
-    validate_database_configuration()
     if settings.admin_password and not settings.admin_password.strip():
         raise RuntimeError("ADMIN_PASSWORD must not be blank.")
 

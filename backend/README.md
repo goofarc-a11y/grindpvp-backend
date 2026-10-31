@@ -23,9 +23,6 @@ For an existing Render service, set:
 - `APP_ENV=production`
 - `DATABASE_URL` to the Render PostgreSQL internal connection string
 - `ADMIN_PASSWORD` to the password accepted by the password-only login form
-- `CORS_ORIGINS` to a comma-separated list of exact trusted website origins
-  (for example `https://grindpvp-website.onrender.com`). Do not use `*` for a
-  public deployment. The local Vite development server proxies API requests.
 
 Render deploys the source connected to its Git repository. Push these changes
 to that repository or trigger a deploy after updating the source; changing
@@ -63,14 +60,6 @@ but does not prove account ownership.
 - `POST /admin/login`, then pass the returned bearer token to admin endpoints
 - `POST /admin/logout`, `/players`, `/verify`, `/roles`, `/titles`, `/matches`,
   `/tiers`, `/stats`; `GET /admin/matches`, `/logs`, `/players/{uuid}`
-
-The browser website uses these same endpoints and the same configured database.
-The deployed GrindPvP website origin is allowed by default. Set `CORS_ORIGINS`
-to a comma-separated list to allow additional trusted origins.
-The production health response reports `database_engine`; it must say
-`postgresql`. Production startup now fails rather than silently accepting
-SQLite, which prevents a misconfigured Render service from creating an
-independent ephemeral player database.
 
 Admin create, verify, role, title, tier, statistics, and match operations accept
 Minecraft names. New player creation resolves the official UUID server-side;
