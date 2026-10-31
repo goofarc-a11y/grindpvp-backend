@@ -39,6 +39,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { api, ApiError, query } from "./api";
+import grindPvPLogo from "./assets/grindpvp-logo.png";
 import type {
   AdminLog,
   Catalog,
@@ -415,7 +416,7 @@ function App() {
     >
       <header className="topbar">
         <button className="brand" type="button" data-sound-handled onClick={() => changePage("leaderboard")} aria-label="GrindPvP home">
-          <span className="brand-mark"><Swords size={19} strokeWidth={2.2} /></span>
+          <span className="brand-mark"><img src={grindPvPLogo} alt="" /></span>
           <span className="brand-word">GRIND<span>PVP</span></span>
         </button>
         <nav className="main-nav" aria-label="Main navigation">
