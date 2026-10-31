@@ -1,4 +1,7 @@
-const API_BASE = (import.meta.env.VITE_API_BASE_URL || "/api").replace(/\/+$/, "");
+const DEFAULT_API_BASE = "https://grindpvp-backend-1.onrender.com";
+const API_BASE = (
+  import.meta.env.VITE_API_BASE_URL || (import.meta.env.DEV ? "/api" : DEFAULT_API_BASE)
+).replace(/\/+$/, "");
 
 export class ApiError extends Error {
   constructor(message: string, readonly status: number) {
