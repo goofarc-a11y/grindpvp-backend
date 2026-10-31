@@ -1,7 +1,6 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import SQLAlchemyError
 
 from app.database import check_database_connection, initialize_database
@@ -19,13 +18,6 @@ app = FastAPI(
     version="0.2.0",
     description="Ranked PvP profiles, leaderboards, match history, and admin tools.",
     lifespan=lifespan,
-)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["https://grindpvp-blsu.onrender.com"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
 )
 app.include_router(public_router)
 app.include_router(admin_router)
