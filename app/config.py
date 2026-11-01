@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     admin_password: str | None = None
     admin_session_hours: int = Field(default=8, ge=1, le=168)
     cors_origins: str = ""
+    backup_repository: str | None = None
+    backup_token: str | None = None
+    backup_encryption_key: str | None = None
 
     model_config = SettingsConfigDict(
         env_file=".env",

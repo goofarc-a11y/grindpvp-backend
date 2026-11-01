@@ -24,6 +24,40 @@ For an existing Render service, set:
 - `DATABASE_URL` to the Render PostgreSQL internal connection string
 - `ADMIN_PASSWORD` to the password accepted by the password-only login form
 
+### Free encrypted file backups
+
+For a free Render web service using SQLite, the backend keeps an encrypted
+database snapshot on a separate `database-backups` branch in the existing
+GitHub repository. It restores the latest snapshot during startup and updates
+the snapshot after each database write. Render deploys `main`, so snapshot
+commits on the backup branch do not trigger another deployment. SQLite on
+Render itself is still temporary; the encrypted GitHub copy is the recovery
+source.
+
+Set these Render environment variables before deploying:
+
+- `BACKUP_REPOSITORY` to `owner/repository` (for this project:
+  `goofarc-a11y/grindpvp-backend`)
+- `BACKUP_TOKEN` to a fine-grained GitHub token limited to this repository
+  with Contents read/write permission
+- `BACKUP_ENCRYPTION_KEY` to a URL-safe base64-encoded random 32-byte key
+
+Generate the encryption key locally with:
+
+```powershell
+py -3 -c "import secrets,base64; print(base64.urlsafe_b64encode(secrets.token_bytes(32)).decode())"
+```
+
+Save the key and token as Render secrets; never commit them or send them in
+chat. The database contents are AES-GCM encrypted before upload, including
+password hashes and player data; the backup branch is visible because this
+repository is public, but it contains ciphertext only. Keep a safe copy of the
+encryption key: without it, backups cannot be restored. Production startup
+refuses to run SQLite without all three backup settings, and fails rather than
+silently starting with an unreadable or corrupt backup. GitHub API limits and
+the 50 MB database limit apply; if a backup upload fails, the write request
+returns an error and logs must be checked before retrying.
+
 Render deploys the source connected to its Git repository. Push these changes
 to that repository or trigger a deploy after updating the source; changing
 files in a local workspace does not modify an already running Render service.

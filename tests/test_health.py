@@ -1,10 +1,18 @@
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.exc import OperationalError
 from sqlalchemy import text
 
-from app import main
+from app import database, main
 from app.config import Settings
 from app.database import create_database_engine
+
+
+def test_production_sqlite_requires_durable_backup(monkeypatch) -> None:
+    monkeypatch.setattr(database, "get_settings", lambda: Settings(app_env="production"))
+
+    with pytest.raises(RuntimeError, match="Production SQLite requires"):
+        database.initialize_database()
 
 
 def test_official_website_origin_receives_cors_headers(monkeypatch) -> None:
