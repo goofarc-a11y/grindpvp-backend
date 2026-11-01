@@ -205,6 +205,38 @@ def test_admin_roles_titles_and_audit_log(client) -> None:
     assert logs.json()["total"] >= 3
 
 
+@pytest.mark.parametrize(
+    ("role_name", "expected_color"),
+    [("Test Helper", "#006400"), ("Creator", "#FF69B4")],
+)
+def test_new_roles_are_assignable_and_have_catalog_colors(
+    client,
+    role_name: str,
+    expected_color: str,
+) -> None:
+    player = register(client, f"Role{role_name.replace(' ', '')}")
+    token = login(client)
+    headers = admin_headers(token)
+    assert client.post(
+        "/admin/verify",
+        headers=headers,
+        json={"uuid": player, "verified": True},
+    ).status_code == 200
+
+    assigned = client.post(
+        "/admin/roles",
+        headers=headers,
+        json={"uuid": player, "role": role_name},
+    )
+    assert assigned.status_code == 200
+    assert assigned.json()["role_name"] == role_name
+
+    catalog_roles = {role["name"]: role["color"] for role in client.get("/catalog").json()["roles"]}
+    assert catalog_roles[role_name] == expected_color
+    presentation = client.get("/players/presentation").json()["items"]
+    assert next(item for item in presentation if item["uuid"] == player)["role_color"] == expected_color
+
+
 def test_invalid_kit_uuid_and_admin_credentials_are_rejected(client) -> None:
     assert client.get("/leaderboard/unknown").status_code == 404
     assert client.get(f"/profiles/{UUID(int=0)}").status_code == 404
