@@ -47,6 +47,8 @@ ROLE_COLORS = {
     "Helper": "#55FF55",
     "Developer": "#5555FF",
     "Banned": "#FF0000",
+    "Test Helper": "#006400",
+    "Creator": "#FF69B4",
 }
 TITLE_COLORS = {
     "Member": "#9e99da",

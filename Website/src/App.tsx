@@ -601,7 +601,10 @@ function LeaderboardView({ catalog, kit, page, data, loading, error, tierColor: 
                     onKeyDown={(event) => event.key === "Enter" && onProfile(entry.uuid)}>
                     <td><RankValue rank={entry.rank} /></td>
                     <td><div className="table-player"><img src={avatarUrl(entry.uuid, false)} alt="" loading="lazy" />
-                      <span><strong>{entry.username}</strong><small>{entry.role_name ? `${entry.role_name} · ` : ""}{entry.title_name || "GrindPvP player"}</small></span>
+                      <span><strong>{entry.username}</strong><small>
+                        {entry.role_name && <span style={{ color: roleColor(entry.role_name, catalog) }}>{entry.role_name} · </span>}
+                        {entry.title_name || "GrindPvP player"}
+                      </small></span>
                       {entry.title_name && <BadgeCheck size={14} className="verified-mark" />}</div></td>
                     <td><TierBadge name={entry.tier} color={color(entry.tier)} /></td>
                     <td className="points-cell">{(entry.points ?? entry.average_points ?? 0).toFixed(entry.average_points !== undefined ? 2 : 0)}
