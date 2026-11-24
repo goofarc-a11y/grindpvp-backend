@@ -46,6 +46,8 @@ ROLE_COLORS = {
     "Mod": "#AAAAAA",
     "Helper": "#55FF55",
     "Developer": "#5555FF",
+    "Manager": "#FF7A24",
+    "Moderator": "#55FFFF",
     "Banned": "#FF0000",
     "Test Helper": "#006400",
     "Creator": "#FF69B4",

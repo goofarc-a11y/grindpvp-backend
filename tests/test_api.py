@@ -213,7 +213,12 @@ def test_admin_roles_titles_and_audit_log(client) -> None:
 
 @pytest.mark.parametrize(
     ("role_name", "expected_color"),
-    [("Test Helper", "#006400"), ("Creator", "#FF69B4")],
+    [
+        ("Test Helper", "#006400"),
+        ("Creator", "#FF69B4"),
+        ("Manager", "#FF7A24"),
+        ("Moderator", "#55FFFF"),
+    ],
 )
 def test_new_roles_are_assignable_and_have_catalog_colors(
     client,
