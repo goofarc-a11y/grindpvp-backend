@@ -37,6 +37,7 @@ from app.schemas import (
     PlayerCreate,
     PlayerOut,
     PlayerPage,
+    ProfileOut,
     PlayerPresentation,
     PlayerPresentationPage,
     PlayerStatsUpdate,
@@ -53,6 +54,7 @@ from app.services import (
     leaderboard_page,
     overall_leaderboard_page,
     player_payload,
+    profile_payload,
     submit_match,
     write_admin_log,
 )
@@ -159,9 +161,9 @@ def get_player_stats(player_uuid: UUID, session: Session = Depends(get_db)) -> P
     return player_payload(session, get_player_or_404(session, player_uuid))
 
 
-@public_router.get("/profiles/{player_uuid}", response_model=PlayerOut, tags=["profiles"])
-def get_profile(player_uuid: UUID, session: Session = Depends(get_db)) -> PlayerOut:
-    return player_payload(session, get_player_or_404(session, player_uuid))
+@public_router.get("/profiles/{player_uuid}", response_model=ProfileOut, tags=["profiles"])
+def get_profile(player_uuid: UUID, session: Session = Depends(get_db)) -> ProfileOut:
+    return profile_payload(session, get_player_or_404(session, player_uuid))
 
 
 @public_router.get("/leaderboard/overall", response_model=OverallLeaderboardPage, tags=["leaderboard"])

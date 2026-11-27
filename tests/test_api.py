@@ -68,9 +68,45 @@ def test_registration_profiles_and_public_leaderboards(client) -> None:
     assert page.status_code == 200
     assert page.json()["total"] == 1
     assert page.json()["items"][0]["uuid"] == first
-    assert client.get("/leaderboard/overall").json()["total"] == 1
+    overall = client.get("/leaderboard/overall").json()
+    assert overall["total"] == 1
+    assert len(overall["items"][0]["kits"]) == 14
+    assert client.get(f"/profiles/{first}").json()["overall_rank"] == 1
     assert client.get(f"/profiles/{second}").json()["verified"] is False
+    assert client.get(f"/profiles/{second}").json()["overall_rank"] is None
     assert len(client.get(f"/players/{first}/stats").json()["kits"]) == 14
+
+
+def test_overall_leaderboard_kit_tiers_match_profile_rank(client) -> None:
+    first = register(client, "ProfileRankOne")
+    second = register(client, "ProfileRankTwo")
+    banned = register(client, "BannedRankPlayer")
+    token = login(client)
+    for player_uuid in (first, second, banned):
+        response = client.post(
+            "/admin/verify",
+            headers=admin_headers(token),
+            json={"uuid": player_uuid, "verified": True},
+        )
+        assert response.status_code == 200
+    set_tier(client, token, second, "axe", "HT1")
+    set_tier(client, token, banned, "sword", "HT1")
+    assert client.post(
+        "/admin/roles",
+        headers=admin_headers(token),
+        json={"uuid": banned, "role": "Banned"},
+    ).status_code == 200
+
+    overall = client.get("/leaderboard/overall").json()
+    assert overall["items"][0]["uuid"] == second
+    second_kits = {item["kit"]: item["tier"] for item in overall["items"][0]["kits"]}
+    assert len(second_kits) == 14
+    assert second_kits["axe"] == "HT1"
+    assert second_kits["sword"] == "Unranked"
+    assert banned not in [item["uuid"] for item in overall["items"]]
+    assert client.get(f"/profiles/{second}").json()["overall_rank"] == 1
+    assert client.get(f"/profiles/{first}").json()["overall_rank"] == 2
+    assert client.get(f"/profiles/{banned}").json()["overall_rank"] is None
 
 
 def test_clients_cannot_submit_matches_and_admin_session_can_be_revoked(client) -> None:

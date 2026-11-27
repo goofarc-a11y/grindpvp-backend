@@ -89,7 +89,9 @@ but does not prove account ownership.
 - `GET /players/{uuid}/stats`, `GET /profiles/{uuid}`
 - `GET /players/presentation?page=&page_size=` returns name-decoration data
   for verified players only
-- `GET /leaderboard/overall`, `GET /leaderboard/{kit}`
+- `GET /leaderboard/overall` includes every player's kit tier and
+  `GET /leaderboard/{kit}` returns a kit-specific ranking
+- `GET /profiles/{uuid}` includes the player's overall leaderboard rank
 - `GET /matches`, `GET /matches/{uuid}`
 - `POST /admin/login`, then pass the returned bearer token to admin endpoints
 - `POST /admin/logout`, `/players`, `/verify`, `/roles`, `/titles`, `/matches`,
