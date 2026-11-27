@@ -47,6 +47,7 @@ from app.schemas import (
     VerificationUpdate,
 )
 from app.security import create_admin_session, require_admin, revoke_session, verify_password
+from app.social_card import render_leaderboard_card
 from app.services import (
     canonical_uuid,
     get_player_by_username_or_404,
@@ -174,6 +175,16 @@ def overall_leaderboard(
 ) -> OverallLeaderboardPage:
     entries, total = overall_leaderboard_page(session, page, page_size)
     return OverallLeaderboardPage(items=entries, page=page, page_size=page_size, total=total)
+
+
+@public_router.get("/social/leaderboard-card.png", response_class=Response, tags=["social"])
+def social_leaderboard_card(session: Session = Depends(get_db)) -> Response:
+    entries, _ = overall_leaderboard_page(session, page=1, page_size=3)
+    return Response(
+        content=render_leaderboard_card(entries),
+        media_type="image/png",
+        headers={"Cache-Control": "public, max-age=300, stale-while-revalidate=300"},
+    )
 
 
 @public_router.get("/leaderboard/{kit}", response_model=LeaderboardPage, tags=["leaderboard"])

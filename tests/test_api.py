@@ -77,6 +77,44 @@ def test_registration_profiles_and_public_leaderboards(client) -> None:
     assert len(client.get(f"/players/{first}/stats").json()["kits"]) == 14
 
 
+def test_social_leaderboard_card_contains_current_top_three(client, monkeypatch) -> None:
+    top_one = register(client, "PreviewTopOne")
+    top_two = register(client, "PreviewTopTwo")
+    top_three = register(client, "PreviewTopThree")
+    fourth = register(client, "PreviewFourth")
+    token = login(client)
+    for player_uuid in (top_one, top_two, top_three, fourth):
+        response = client.post(
+            "/admin/verify",
+            headers=admin_headers(token),
+            json={"uuid": player_uuid, "verified": True},
+        )
+        assert response.status_code == 200
+    set_tier(client, token, top_one, "sword", "HT1")
+    set_tier(client, token, top_two, "sword", "LT1")
+    set_tier(client, token, top_three, "sword", "HT2")
+
+    from app import routes, social_card
+
+    rendered_players: list[str] = []
+    render_card = routes.render_leaderboard_card
+
+    def capture_players(entries):
+        rendered_players.extend(entry["username"] for entry in entries)
+        return render_card(entries)
+
+    monkeypatch.setattr(routes, "render_leaderboard_card", capture_players)
+    monkeypatch.setattr(social_card, "_fetch_avatar", lambda _player_uuid: None)
+    response = client.get("/social/leaderboard-card.png")
+
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.headers["cache-control"].startswith("public, max-age=300")
+    assert response.content.startswith(b"\x89PNG\r\n\x1a\n")
+    assert response.content[16:24] == (1200).to_bytes(4, "big") + (630).to_bytes(4, "big")
+    assert rendered_players == ["PreviewTopOne", "PreviewTopTwo", "PreviewTopThree"]
+
+
 def test_overall_leaderboard_kit_tiers_match_profile_rank(client) -> None:
     first = register(client, "ProfileRankOne")
     second = register(client, "ProfileRankTwo")

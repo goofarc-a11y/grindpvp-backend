@@ -91,6 +91,8 @@ but does not prove account ownership.
   for verified players only
 - `GET /leaderboard/overall` includes every player's kit tier and
   `GET /leaderboard/{kit}` returns a kit-specific ranking
+- `GET /social/leaderboard-card.png` returns the current overall top three as a
+  shareable PNG preview
 - `GET /profiles/{uuid}` includes the player's overall leaderboard rank
 - `GET /matches`, `GET /matches/{uuid}`
 - `POST /admin/login`, then pass the returned bearer token to admin endpoints
