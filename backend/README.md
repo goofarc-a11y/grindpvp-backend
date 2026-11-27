@@ -54,10 +54,12 @@ but does not prove account ownership.
 - `GET /health`, `GET /catalog`
 - `GET /players?search=&page=&page_size=`; `POST /players` is intentionally
   rejected until trusted Minecraft account verification is implemented
-- `GET /players/{uuid}/stats`, `GET /profiles/{uuid}`
+- `GET /players/{uuid}/stats`, `GET /profiles/{uuid}` (the profile response
+  includes its overall rank)
 - `GET /players/presentation?page=&page_size=` returns name-decoration data
   for verified players only
-- `GET /leaderboard/overall`, `GET /leaderboard/{kit}`
+- `GET /leaderboard/overall` (each entry includes all kit tiers),
+  `GET /leaderboard/{kit}`
 - `GET /matches`, `GET /matches/{uuid}`
 - `POST /admin/login`, then pass the returned bearer token to admin endpoints
 - `POST /admin/logout`, `/players`, `/verify`, `/roles`, `/titles`, `/matches`,

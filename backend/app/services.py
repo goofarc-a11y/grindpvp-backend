@@ -84,6 +84,39 @@ def player_payload(session: Session, player: Player) -> dict[str, object]:
     }
 
 
+def profile_payload(session: Session, player: Player) -> dict[str, object]:
+    payload = player_payload(session, player)
+    payload["overall_rank"] = overall_player_rank(session, player)
+    return payload
+
+
+def overall_player_rank(session: Session, player: Player) -> int | None:
+    if not player.verified:
+        return None
+
+    points_per_kit = case(*[(PlayerKit.tier == tier, value) for tier, value in TIER_POINTS.items()], else_=0)
+    player_points = session.scalar(
+        select(func.coalesce(func.sum(points_per_kit), 0)).select_from(PlayerKit).where(
+            PlayerKit.player_uuid == player.uuid
+        )
+    ) or 0
+    players_ahead = (
+        select(Player.uuid)
+        .outerjoin(PlayerKit, PlayerKit.player_uuid == Player.uuid)
+        .where(Player.verified.is_(True))
+        .group_by(Player.uuid, Player.username)
+        .having(
+            (func.coalesce(func.sum(points_per_kit), 0) > player_points)
+            | (
+                (func.coalesce(func.sum(points_per_kit), 0) == player_points)
+                & (Player.username.collate("NOCASE") < player.username)
+            )
+        )
+        .subquery()
+    )
+    return int(session.scalar(select(func.count()).select_from(players_ahead)) or 0) + 1
+
+
 def write_admin_log(
     session: Session,
     admin_username: str,
@@ -259,6 +292,13 @@ def overall_leaderboard_page(
         .offset(offset)
         .limit(page_size)
     ).all()
+    player_uuids = [player.uuid for player, _ in rows]
+    tiers_by_player: dict[str, dict[str, str]] = {player_uuid: {} for player_uuid in player_uuids}
+    if player_uuids:
+        kit_rows = session.scalars(select(PlayerKit).where(PlayerKit.player_uuid.in_(player_uuids))).all()
+        for record in kit_rows:
+            tiers_by_player[record.player_uuid][record.kit] = record.tier
+
     entries: list[dict[str, object]] = []
     for rank, (player, point_total) in enumerate(rows, start=offset + 1):
         tier, average = overall_tier(int(point_total))
@@ -271,6 +311,10 @@ def overall_leaderboard_page(
                 "tier": tier,
                 "average_points": round(average, 2),
                 "rank": rank,
+                "kits": [
+                    {"kit": kit, "tier": tiers_by_player[player.uuid].get(kit, "Unranked")}
+                    for kit in KIT_IDS
+                ],
             }
         )
     return entries, total

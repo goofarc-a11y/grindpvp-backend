@@ -68,9 +68,33 @@ def test_registration_profiles_and_public_leaderboards(client) -> None:
     assert page.status_code == 200
     assert page.json()["total"] == 1
     assert page.json()["items"][0]["uuid"] == first
-    assert client.get("/leaderboard/overall").json()["total"] == 1
-    assert client.get(f"/profiles/{second}").json()["verified"] is False
+    overall = client.get("/leaderboard/overall").json()
+    assert overall["total"] == 1
+    assert len(overall["items"][0]["kits"]) == 14
+    assert client.get(f"/profiles/{first}").json()["overall_rank"] == 1
+    unverified_profile = client.get(f"/profiles/{second}").json()
+    assert unverified_profile["verified"] is False
+    assert unverified_profile["overall_rank"] is None
     assert len(client.get(f"/players/{first}/stats").json()["kits"]) == 14
+
+
+def test_profile_overall_rank_matches_leaderboard_order(client) -> None:
+    first = register(client, "ProfileRankOne")
+    second = register(client, "ProfileRankTwo")
+    token = login(client)
+    for player_uuid in (first, second):
+        response = client.post(
+            "/admin/verify",
+            headers=admin_headers(token),
+            json={"uuid": player_uuid, "verified": True},
+        )
+        assert response.status_code == 200
+    set_tier(client, token, second, "sword", "HT1")
+
+    overall = client.get("/leaderboard/overall").json()
+    assert overall["items"][0]["uuid"] == second
+    assert client.get(f"/profiles/{second}").json()["overall_rank"] == 1
+    assert client.get(f"/profiles/{first}").json()["overall_rank"] == 2
 
 
 def test_clients_cannot_submit_matches_and_admin_session_can_be_revoked(client) -> None:

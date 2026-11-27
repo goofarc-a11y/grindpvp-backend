@@ -60,6 +60,10 @@ class PlayerOut(BaseModel):
     kits: list[KitStatsOut]
 
 
+class ProfileOut(PlayerOut):
+    overall_rank: int | None
+
+
 class PlayerPage(BaseModel):
     items: list[PlayerOut]
     page: int
@@ -208,6 +212,11 @@ class LeaderboardPage(BaseModel):
     total: int
 
 
+class KitTierOut(BaseModel):
+    kit: KitId
+    tier: TierId
+
+
 class OverallLeaderboardEntry(BaseModel):
     uuid: str
     username: str
@@ -216,6 +225,7 @@ class OverallLeaderboardEntry(BaseModel):
     tier: str
     average_points: float
     rank: int
+    kits: list[KitTierOut]
 
 
 class OverallLeaderboardPage(BaseModel):
